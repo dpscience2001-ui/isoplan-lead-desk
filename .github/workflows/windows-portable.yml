@@ -2,6 +2,8 @@ name: Build Windows portable app
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -62,4 +64,3 @@ jobs:
           path: IsoPlan-Lead-Desk-portable.zip
           retention-days: 7
           if-no-files-found: error
-
