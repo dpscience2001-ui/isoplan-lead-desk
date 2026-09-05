@@ -51,8 +51,10 @@ impl Database {
     pub fn contacts(&self, lead_id: &str) -> Result<Vec<ContactRecord>, AppError> {
         let connection = self.connection()?;
         let mut statement = connection.prepare("SELECT id, type, value, recipient_role, source_url, caution_reason FROM contacts WHERE lead_id = ?1 ORDER BY is_preferred DESC, created_at")?;
-        statement.query_map([lead_id], |row| Ok(ContactRecord { id: row.get(0)?, contact_type: row.get(1)?, value: row.get(2)?, recipient_role: row.get(3)?, source_url: row.get(4)?, caution_reason: row.get(5)? }))?
-            .collect::<Result<Vec<_>, _>>().map_err(Into::into)
+        let contacts = statement
+            .query_map([lead_id], |row| Ok(ContactRecord { id: row.get(0)?, contact_type: row.get(1)?, value: row.get(2)?, recipient_role: row.get(3)?, source_url: row.get(4)?, caution_reason: row.get(5)? }))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(contacts)
     }
 }
 

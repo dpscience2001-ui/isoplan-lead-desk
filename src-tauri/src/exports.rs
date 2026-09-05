@@ -61,8 +61,10 @@ impl Database {
     fn export_rows(&self) -> Result<Vec<ExportLead>, AppError> {
         let connection = self.connection()?;
         let mut statement = connection.prepare("SELECT id, company_name, official_website, country, language, city_or_service_area, status, qualification_score, confidence_level, created_at, updated_at FROM leads ORDER BY created_at")?;
-        statement.query_map([], |row| Ok(ExportLead { id: row.get(0)?, company_name: row.get(1)?, official_website: row.get(2)?, country: row.get(3)?, language: row.get(4)?, city_or_service_area: row.get(5)?, status: row.get(6)?, qualification_score: row.get(7)?, confidence_level: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)? }))?
-            .collect::<Result<Vec<_>, _>>().map_err(Into::into)
+        let leads = statement
+            .query_map([], |row| Ok(ExportLead { id: row.get(0)?, company_name: row.get(1)?, official_website: row.get(2)?, country: row.get(3)?, language: row.get(4)?, city_or_service_area: row.get(5)?, status: row.get(6)?, qualification_score: row.get(7)?, confidence_level: row.get(8)?, created_at: row.get(9)?, updated_at: row.get(10)? }))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(leads)
     }
 }
 

@@ -15,8 +15,10 @@ impl Database {
     pub fn settings(&self) -> Result<BTreeMap<String, String>, AppError> {
         let connection = self.connection()?;
         let mut statement = connection.prepare("SELECT key, value FROM settings ORDER BY key")?;
-        statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-            .collect::<Result<BTreeMap<_, _>, _>>().map_err(Into::into)
+        let settings = statement
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        Ok(settings)
     }
 
     pub fn update_setting(&self, key: &str, value: &str) -> Result<(), AppError> {
