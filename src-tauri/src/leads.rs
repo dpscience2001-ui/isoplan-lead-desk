@@ -111,6 +111,7 @@ impl Database {
             params![Uuid::new_v4().to_string(), id],
         )?;
         transaction.commit()?;
+        drop(connection);
         self.get_lead_summary(&id)
     }
 
@@ -155,6 +156,7 @@ impl Database {
         }
         transaction.execute("INSERT INTO timeline_events(id, lead_id, event_type, detail) VALUES(?1, ?2, 'lead_updated', 'Company details edited by user')", params![Uuid::new_v4().to_string(), input.id])?;
         transaction.commit()?;
+        drop(connection);
         self.get_lead_summary(&input.id)
     }
 

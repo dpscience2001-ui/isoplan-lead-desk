@@ -80,6 +80,7 @@ impl Database {
         transaction.execute("UPDATE leads SET status='draft_ready', updated_at=CURRENT_TIMESTAMP WHERE id=?1", [&input.lead_id])?;
         transaction.execute("INSERT INTO timeline_events(id,lead_id,event_type,detail) VALUES(?1,?2,'draft_saved','Initial outreach draft saved for review')", params![Uuid::new_v4().to_string(), input.lead_id])?;
         transaction.commit()?;
+        drop(connection);
         self.get_draft(&id)
     }
 
@@ -97,7 +98,9 @@ impl Database {
         transaction.execute("UPDATE outreach_drafts SET approved_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?1", [id])?;
         transaction.execute("UPDATE leads SET status='approved', updated_at=CURRENT_TIMESTAMP WHERE id=?1", [&lead_id])?;
         transaction.execute("INSERT INTO timeline_events(id,lead_id,event_type,detail) VALUES(?1,?2,'draft_approved','User explicitly approved the complete draft')", params![Uuid::new_v4().to_string(), lead_id])?;
-        transaction.commit()?; self.get_draft(id)
+        transaction.commit()?;
+        drop(connection);
+        self.get_draft(id)
     }
 
     fn get_draft(&self, id: &str) -> Result<OutreachDraft, AppError> {

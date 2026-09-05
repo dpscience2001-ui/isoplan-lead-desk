@@ -30,6 +30,10 @@ jobs:
           npm test
           npm audit --audit-level=high
 
+      - name: Verify Rust backend
+        working-directory: src-tauri
+        run: cargo test
+
       - name: Build portable executable
         run: npm run tauri build -- --no-bundle
 
