@@ -84,6 +84,7 @@ h1 { font-family: Georgia, serif; font-size: 25px; font-weight: 500; margin: 0; 
 .dialog { width: min(540px, 100%); background: var(--paper); border: 1px solid #cbd1cc; box-shadow: 0 24px 70px rgba(13, 27, 22, .25); }
 .dialog-heading { padding: 22px 24px 17px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: flex-start; }
 .dialog-heading h2 { margin: 0; font: 500 22px Georgia, serif; }
+.heading-actions { display: flex; align-items: center; gap: 8px; }
 .icon-button { border: 0; background: transparent; color: #68766f; padding: 4px; cursor: pointer; }
 .dialog form { display: grid; gap: 15px; padding: 22px 24px 24px; }
 .dialog label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: #43514c; }
@@ -94,6 +95,8 @@ h1 { font-family: Georgia, serif; font-size: 25px; font-weight: 500; margin: 0; 
 .form-assurance { background: #eef2ef; color: #5b6c65; font-size: 11px; line-height: 1.45; padding: 9px 11px; }
 .form-error { margin: 0; color: #9a3f35; font-size: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.split-actions { display: grid; grid-template-columns: auto 1fr auto auto; }
+.danger-action { border: 1px solid #a85a50; background: #fff; color: #8d3d34; padding: 9px 14px; cursor: pointer; }
 .import-dialog { width: min(610px, 100%); }
 .import-body { display: grid; gap: 16px; padding: 22px 24px 24px; }
 .import-body > label:not(.file-drop) { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: #43514c; }
@@ -154,6 +157,15 @@ h1 { font-family: Georgia, serif; font-size: 25px; font-weight: 500; margin: 0; 
 .data-actions { padding: 20px; display: grid; gap: 10px; }
 .data-actions p { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 0 0 5px; }
 .data-actions button { justify-content: center; }
+.backup-list { display: grid; gap: 7px; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 14px; }
+.backup-list > strong { font-size: 12px; }
+.backup-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 10px; overflow-wrap: anywhere; }
+.backup-row span { display: grid; gap: 2px; }
+.backup-row small { color: var(--muted); }
+.follow-up-list { display: grid; }
+.follow-up-row { padding: 15px 20px; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(220px, 1fr) auto auto auto; gap: 10px; align-items: center; }
+.follow-up-row strong { font-size: 13px; }
+.follow-up-row p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 
 @media (max-width: 1120px) {
   .metric-grid { grid-template-columns: repeat(2, 1fr); }

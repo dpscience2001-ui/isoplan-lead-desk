@@ -44,6 +44,10 @@ Initial drafts require a published email contact plus at least one sourced, posi
 
 Approval records an audit event but sends nothing. Deceptive initial subjects beginning with `Re:` are rejected. Gmail composition and sent confirmation remain separate workflow states; opening Gmail must never be treated as proof that an email was sent.
 
+After explicit approval, the app can open a prefilled Gmail compose page in the default browser. It never signs in, reads Gmail, or sends automatically. A follow-up is scheduled only after the user separately clicks **I sent it**; replies are recorded manually and cancel pending follow-ups.
+
+Lead edits preserve their research history. Permanent deletion is limited to rejected, archived, or do-not-contact records and requires the exact company name. Backup restore accepts only validated SQLite backups from the portable `data/backups` directory and creates a safety snapshot before replacement.
+
 ## Architecture
 
 - Tauri 2 provides the Windows desktop shell.
@@ -136,6 +140,6 @@ Provider failure must never prevent access to the local lead database.
 
 ## Known limitations
 
-- Rust and the Windows C++ build toolchain are not yet available, so the native shell has not been compiled.
-- The current interface is a foundation view; navigation and database-backed workflows are not connected yet.
-- Application icons and installer assets will be added after the product UI is stable.
+- Rust and the Windows C++ build toolchain are intentionally absent locally; native tests and packaging run on GitHub-hosted Windows runners.
+- Research and AI-provider adapters are not implemented yet; leads, sources, evidence, and contacts are currently entered or imported by the user.
+- Gmail composition opens in the default browser and requires the user to be signed in there.

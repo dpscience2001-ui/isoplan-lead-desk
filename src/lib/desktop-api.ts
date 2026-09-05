@@ -72,6 +72,7 @@ export async function exportLeads(format: "csv" | "json"): Promise<string> {
 export async function updateLead(input: { id: string; companyName: string; officialWebsite: string; country: string; language: string; cityOrServiceArea?: string }): Promise<LeadSummary> {
   return invoke<LeadSummary>("update_lead", { input });
 }
+export async function deleteLead(id: string, confirmation: string): Promise<void> { return invoke("delete_lead", { id, confirmation }); }
 
 export async function getDraftSeed(leadId: string): Promise<{ subject: string; body: string }> {
   return invoke("draft_seed", { leadId });
@@ -88,3 +89,14 @@ export async function saveDraft(input: { id?: string; leadId: string; contactId:
 export async function approveDraft(id: string): Promise<OutreachDraft> {
   return invoke("approve_draft", { id });
 }
+export async function openGmail(id: string): Promise<void> { return invoke("open_gmail", { id }); }
+export async function confirmSent(id: string, sent: boolean): Promise<void> { return invoke("confirm_sent", { id, sent }); }
+
+export interface FollowUpSummary { id:string; leadId:string; companyName:string; dueAt:string; status:string; recipient?:string }
+export async function getFollowUps(): Promise<FollowUpSummary[]> { return invoke("due_follow_ups"); }
+export async function snoozeFollowUp(id:string, days:number): Promise<void> { return invoke("snooze_follow_up", { id, days }); }
+export async function markReplied(leadId:string): Promise<void> { return invoke("mark_replied", { leadId }); }
+
+export interface BackupInfo { fileName:string; sizeBytes:number }
+export async function listBackups(): Promise<BackupInfo[]> { return invoke("list_backups"); }
+export async function restoreBackup(fileName:string, confirmation:string): Promise<void> { return invoke("restore_backup", { fileName, confirmation }); }

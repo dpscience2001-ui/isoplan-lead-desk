@@ -183,7 +183,7 @@ impl Database {
                     COALESCE(SUM(CASE WHEN status = 'qualified' THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN status = 'draft_ready' THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN status = 'contacted' THEN 1 ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN status = 'follow_up_due' THEN 1 ELSE 0 END), 0),
+                    (SELECT COUNT(*) FROM follow_ups WHERE status IN ('due','snoozed') AND due_at <= CURRENT_TIMESTAMP),
                     COALESCE(SUM(CASE WHEN status = 'replied' THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN status = 'interested' THEN 1 ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN status = 'converted' THEN 1 ELSE 0 END), 0)
@@ -196,6 +196,17 @@ impl Database {
                 }),
             )
             .map_err(Into::into)
+    }
+
+    pub fn delete_lead(&self, id: &str, confirmation: &str) -> Result<(), AppError> {
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction()?;
+        let (company, status): (String, String) = transaction.query_row("SELECT company_name, status FROM leads WHERE id=?1", [id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        if confirmation != company { return Err(AppError::InvalidLead("type the exact company name to confirm deletion".into())); }
+        if !matches!(status.as_str(), "rejected" | "archived" | "do_not_contact") { return Err(AppError::InvalidLead("only rejected, archived, or do-not-contact leads can be deleted".into())); }
+        transaction.execute("DELETE FROM leads WHERE id=?1", [id])?;
+        transaction.commit()?;
+        Ok(())
     }
 
     pub fn set_lead_status(&self, id: &str, status: &str, reason: Option<&str>) -> Result<(), AppError> {
@@ -250,4 +261,39 @@ fn map_lead_summary(row: &rusqlite::Row<'_>) -> rusqlite::Result<LeadSummary> {
         status: row.get(6)?, qualification_score: row.get(7)?, confidence_level: row.get(8)?,
         created_at: row.get(9)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{sync::{mpsc, Arc}, time::Duration};
+
+    fn database() -> Arc<Database> {
+        let path = std::env::temp_dir().join(format!("isoplan-test-{}.db", Uuid::new_v4()));
+        Arc::new(Database::open_path(path).expect("test database"))
+    }
+
+    #[test]
+    fn create_and_update_return_without_relocking_deadlock() {
+        let database = database();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(move || {
+            let created = database.create_lead(CreateLeadInput { company_name: "Example Stays".into(), official_website: "https://example.com".into(), country: "GB".into(), language: "en".into(), city_or_service_area: None }).expect("create lead");
+            let updated = database.update_lead(UpdateLeadInput { id: created.id, company_name: "Example Stays Ltd".into(), official_website: "https://example.com".into(), country: "GB".into(), language: "en".into(), city_or_service_area: Some("Cornwall".into()) }).expect("update lead");
+            sender.send(updated).expect("return result");
+        });
+        let updated = receiver.recv_timeout(Duration::from_secs(3)).expect("database operation deadlocked");
+        assert_eq!(updated.company_name, "Example Stays Ltd");
+    }
+
+    #[test]
+    fn deletion_requires_terminal_status_and_exact_name() {
+        let database = database();
+        let lead = database.create_lead(CreateLeadInput { company_name: "Delete Test".into(), official_website: "https://delete.example".into(), country: "US".into(), language: "en".into(), city_or_service_area: None }).unwrap();
+        assert!(database.delete_lead(&lead.id, "Delete Test").is_err());
+        database.set_lead_status(&lead.id, "rejected", Some("Not a management company")).unwrap();
+        assert!(database.delete_lead(&lead.id, "wrong").is_err());
+        database.delete_lead(&lead.id, "Delete Test").unwrap();
+        assert!(database.list_leads().unwrap().is_empty());
+    }
 }

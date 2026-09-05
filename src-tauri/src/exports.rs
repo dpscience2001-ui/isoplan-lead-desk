@@ -2,8 +2,9 @@ use std::{fs, path::PathBuf};
 
 use chrono::Utc;
 use serde::Serialize;
+use rusqlite::{backup::Progress, DatabaseName, OpenFlags};
 
-use crate::{database::{portable_root, Database}, error::AppError};
+use crate::{database::Database, error::AppError};
 
 #[derive(Serialize)]
 struct ExportLead {
@@ -20,9 +21,16 @@ struct ExportLead {
     updated_at: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    pub file_name: String,
+    pub size_bytes: u64,
+}
+
 impl Database {
     pub fn create_backup(&self) -> Result<String, AppError> {
-        let directory = portable_root()?.join("data").join("backups");
+        let directory = self.data_directory()?.join("backups");
         fs::create_dir_all(&directory)?;
         let path = timestamped_path(&directory, "isoplan-backup", "db");
         let connection = self.connection()?;
@@ -33,9 +41,43 @@ impl Database {
         Ok(path.to_string_lossy().into_owned())
     }
 
+    pub fn list_backups(&self) -> Result<Vec<BackupInfo>, AppError> {
+        let directory = self.data_directory()?.join("backups");
+        fs::create_dir_all(&directory)?;
+        let mut backups = fs::read_dir(directory)?.filter_map(Result::ok).filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().is_none_or(|value| value != "db") { return None; }
+            Some(BackupInfo { file_name: entry.file_name().to_string_lossy().into_owned(), size_bytes: entry.metadata().ok()?.len() })
+        }).collect::<Vec<_>>();
+        backups.sort_by(|a,b| b.file_name.cmp(&a.file_name));
+        Ok(backups)
+    }
+
+    pub fn restore_backup(&self, file_name: &str, confirmation: &str) -> Result<(), AppError> {
+        if confirmation != "RESTORE" { return Err(AppError::InvalidLead("type RESTORE to confirm".into())); }
+        if file_name.contains('/') || file_name.contains('\\') || !file_name.starts_with("isoplan-backup-") || !file_name.ends_with(".db") {
+            return Err(AppError::InvalidLead("invalid backup selection".into()));
+        }
+        let directory = self.data_directory()?.join("backups");
+        let canonical_directory = fs::canonicalize(&directory)?;
+        let path = fs::canonicalize(directory.join(file_name))?;
+        if path.parent() != Some(canonical_directory.as_path()) { return Err(AppError::InvalidLead("backup must be inside the portable backup directory".into())); }
+        let source = rusqlite::Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let integrity: String = source.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+        if integrity != "ok" { return Err(AppError::InvalidLead("backup failed SQLite integrity validation".into())); }
+        let version: i64 = source.query_row("SELECT COALESCE(MAX(version),0) FROM schema_migrations", [], |row| row.get(0))?;
+        if version < 1 || version > 5 { return Err(AppError::InvalidLead("backup schema version is unsupported".into())); }
+        drop(source);
+        self.create_backup()?;
+        let mut connection = self.connection()?;
+        connection.restore(DatabaseName::Main, &path, None::<fn(Progress)>)?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        Ok(())
+    }
+
     pub fn export_leads(&self, format: &str) -> Result<String, AppError> {
         if !matches!(format, "csv" | "json") { return Err(AppError::InvalidLead("export format must be CSV or JSON".into())); }
-        let directory = portable_root()?.join("data").join("exports");
+        let directory = self.data_directory()?.join("exports");
         fs::create_dir_all(&directory)?;
         let path = timestamped_path(&directory, "isoplan-leads", format);
         let leads = self.export_rows()?;
@@ -69,7 +111,7 @@ impl Database {
 }
 
 fn timestamped_path(directory: &std::path::Path, prefix: &str, extension: &str) -> PathBuf {
-    directory.join(format!("{prefix}-{}.{}", Utc::now().format("%Y%m%d-%H%M%S-%3f"), extension))
+    directory.join(format!("{prefix}-{}-{}.{}", Utc::now().format("%Y%m%d-%H%M%S-%3f"), uuid::Uuid::new_v4().simple(), extension))
 }
 
 fn safe_csv(value: &str) -> String {
@@ -81,4 +123,25 @@ fn prune_backups(directory: &std::path::Path, keep: usize) -> Result<(), AppErro
     files.sort_by_key(|entry| std::cmp::Reverse(entry.file_name()));
     for entry in files.into_iter().skip(keep) { fs::remove_file(entry.path())?; }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::leads::CreateLeadInput;
+    use uuid::Uuid;
+
+    #[test]
+    fn restore_validates_and_restores_portable_backup() {
+        let root = std::env::temp_dir().join(format!("isoplan-backup-test-{}", Uuid::new_v4()));
+        let database = Database::open_path(root.join("isoplan.db")).unwrap();
+        let lead = database.create_lead(CreateLeadInput { company_name:"Before Backup".into(), official_website:"https://backup.test".into(), country:"US".into(), language:"en".into(), city_or_service_area:None }).unwrap();
+        let backup_path = database.create_backup().unwrap();
+        database.set_lead_status(&lead.id, "rejected", Some("test")).unwrap();
+        database.delete_lead(&lead.id, "Before Backup").unwrap();
+        let file_name = std::path::Path::new(&backup_path).file_name().unwrap().to_string_lossy().into_owned();
+        assert!(database.restore_backup(&file_name, "wrong").is_err());
+        database.restore_backup(&file_name, "RESTORE").unwrap();
+        assert_eq!(database.list_leads().unwrap().len(), 1);
+    }
 }

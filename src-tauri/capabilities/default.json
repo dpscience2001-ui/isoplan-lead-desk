@@ -3,6 +3,5 @@
   "identifier": "default",
   "description": "Minimum permissions for the main IsoPlan Lead Desk window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "opener:allow-open-url"]
 }
-

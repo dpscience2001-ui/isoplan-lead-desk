@@ -7,10 +7,10 @@ const MIGRATION_001: &str = include_str!("../migrations/001_initial.sql");
 const MIGRATION_002: &str = include_str!("../migrations/002_review_workspace.sql");
 const MIGRATION_003: &str = include_str!("../migrations/003_settings_and_contacts.sql");
 const MIGRATION_004: &str = include_str!("../migrations/004_outreach_workflow.sql");
+const MIGRATION_005: &str = include_str!("../migrations/005_follow_ups.sql");
 
 pub struct Database {
     connection: Mutex<Connection>,
-    #[allow(dead_code)]
     path: PathBuf,
 }
 
@@ -20,7 +20,11 @@ impl Database {
         // executable instead of silently writing to the Windows system drive.
         let directory = portable_root()?.join("data");
         fs::create_dir_all(&directory)?;
-        let path = directory.join("isoplan-lead-desk.db");
+        Self::open_path(directory.join("isoplan-lead-desk.db"))
+    }
+
+    pub(crate) fn open_path(path: PathBuf) -> Result<Self, AppError> {
+        if let Some(directory) = path.parent() { fs::create_dir_all(directory)?; }
         let mut connection = Connection::open(&path)?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
@@ -35,7 +39,7 @@ impl Database {
                 applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );",
         )?;
-        for (version, sql) in [(1_i64, MIGRATION_001), (2_i64, MIGRATION_002), (3_i64, MIGRATION_003), (4_i64, MIGRATION_004)] {
+        for (version, sql) in [(1_i64, MIGRATION_001), (2_i64, MIGRATION_002), (3_i64, MIGRATION_003), (4_i64, MIGRATION_004), (5_i64, MIGRATION_005)] {
             let applied: bool = connection.query_row(
                 "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = ?1)",
                 [version],
@@ -59,6 +63,10 @@ impl Database {
 
     pub(crate) fn connection(&self) -> Result<std::sync::MutexGuard<'_, Connection>, AppError> {
         self.connection.lock().map_err(|_| AppError::DatabaseBusy)
+    }
+
+    pub(crate) fn data_directory(&self) -> Result<PathBuf, AppError> {
+        self.path.parent().map(PathBuf::from).ok_or(AppError::AppDataUnavailable)
     }
 }
 
