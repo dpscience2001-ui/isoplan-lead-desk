@@ -1,0 +1,65 @@
+name: Build Windows portable app
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify frontend
+        run: |
+          npm run typecheck
+          npm test
+          npm audit --audit-level=high
+
+      - name: Build portable executable
+        run: npm run tauri build -- --no-bundle
+
+      - name: Enforce 150 MB application limit
+        shell: pwsh
+        run: |
+          $executable = "src-tauri/target/release/isoplan-lead-desk.exe"
+          if (-not (Test-Path -LiteralPath $executable)) {
+            throw "Portable executable was not produced."
+          }
+          $size = (Get-Item -LiteralPath $executable).Length
+          if ($size -ge 150MB) {
+            throw "Portable application is $([math]::Round($size / 1MB, 2)) MB; limit is below 150 MB."
+          }
+          "Portable application size: $([math]::Round($size / 1MB, 2)) MB"
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Copy-Item -LiteralPath "src-tauri/target/release/isoplan-lead-desk.exe" -Destination "portable/IsoPlan Lead Desk.exe"
+          Set-Content -LiteralPath "portable/README.txt" -Value @"
+          Extract this folder anywhere on D: and run IsoPlan Lead Desk.exe.
+          Keep the generated data folder beside the executable.
+          Microsoft Edge WebView2 must already be installed.
+          "@
+          Compress-Archive -Path portable/* -DestinationPath IsoPlan-Lead-Desk-portable.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IsoPlan-Lead-Desk-Windows-portable
+          path: IsoPlan-Lead-Desk-portable.zip
+          retention-days: 7
+          if-no-files-found: error
+
