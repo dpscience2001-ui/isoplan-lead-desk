@@ -18,6 +18,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
     "createUpdaterArtifacts": false,
     "windows": {
       "webviewInstallMode": { "type": "skip" }
